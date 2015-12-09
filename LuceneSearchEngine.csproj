@@ -52,7 +52,7 @@
     <Compile Include="LuceneSearch.cs" />
     <Compile Include="LuceneSettings.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="SearchField.cs" />
+    <Compile Include="SearchTerm.cs" />
     <Compile Include="Utility.cs" />
   </ItemGroup>
   <ItemGroup>
