@@ -141,12 +141,20 @@ namespace LuceneSearchEngine
                 BooleanQuery query = new BooleanQuery();
                 StandardAnalyzer analyzer = new StandardAnalyzer(Version.LUCENE_30);
 
-                foreach (var pair in searchTermFields)
+                foreach (KeyValuePair<string, SearchTerm> pair in searchTermFields)
                 {
-                    QueryParser parser = new QueryParser(Version.LUCENE_30, pair.Key, analyzer);
-                    Query pquery = parseQuery(pair.Value.Term,parser);
+                    if (pair.Value.RangeTerm)
+                    {
+                        NumericRangeQuery<int> nq = NumericRangeQuery.NewIntRange(pair.Key, pair.Value.iFrom, pair.Value.iTo, true, true);
+                        query.Add(nq, pair.Value.TermOccur);
+                    }
+                    else
+                    {
+                        QueryParser parser = new QueryParser(Version.LUCENE_30, pair.Key, analyzer);
+                        Query pquery = parseQuery(pair.Value.Term, parser);
 
-                    query.Add(pquery, pair.Value.TermOccur);
+                        query.Add(pquery, pair.Value.TermOccur);
+                    }
                 }
                 ScoreDoc[] hits = searcher.Search(query, null, limit, Sort.RELEVANCE).ScoreDocs;
                 IEnumerable<T> results = hits.Select(hit => MapDocToData(searcher.Doc(hit.Doc))).ToList();

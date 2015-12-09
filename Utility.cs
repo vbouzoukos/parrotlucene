@@ -5,11 +5,13 @@ using System.Text;
 using System.Threading.Tasks;
 
 using System.Security.Cryptography;
+using System.Globalization;
+
 namespace LuceneSearchEngine
 {
     public class Utility
     {
-        public string GenerateUniqueID
+        public static string GenerateUniqueID
         {
             get
             {
@@ -33,6 +35,16 @@ namespace LuceneSearchEngine
                 return result.ToString();
             }
 
+        }
+
+        public static string DateSerialize(DateTime dateTime)
+        {
+            return dateTime.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+        }
+
+        public static DateTime DateDeserialize(string str)
+        {
+            return DateTime.ParseExact(str, "yyyyMMddHHmmss", CultureInfo.InvariantCulture);
         }
     }
 }
