@@ -11,12 +11,25 @@ using Lucene.Net.Search;
 using Lucene.Net.Store;
 using Version = Lucene.Net.Util.Version;
 
+using Lucene.Net.Spatial;
+using Lucene.Net.Spatial.Queries;
+using Lucene.Net.Spatial.Vector;
+
+using Spatial4n.Core.Context;
+using Spatial4n.Core.Distance;
+using Spatial4n.Core.Shapes;
+
 namespace LuceneSearchEngine
 {
     abstract public class LuceneSearch<T> where T : IBaseLuceneEntity
     {
         //todo: we will add required Lucene methods here, step-by-step...
         private string _indexname = "lucene_index";
+        private SpatialContext sptctx;
+        private SpatialStrategy strategy;
+        private IndexSearcher searcher;
+        private IndexReader indexReader;
+
         public string IndexName
         {
             get { return _indexname; }
@@ -56,8 +69,40 @@ namespace LuceneSearchEngine
             // add entry to index
             writer.AddDocument(doc);
         }
+        public void SetPointVectorStrategy(string locationField)
+        {
+            sptctx = SpatialContext.GEO;
+            strategy = new PointVectorStrategy(sptctx, locationField);          
+        }
+        public SpatialStrategy Strategy
+        {
+            get
+            {
+                return strategy;
+            }
+        }
+        public SpatialContext SpatialContext
+        {
+            get
+            {
+                return sptctx;
+            }
+        }
+
         public abstract void Indexing(Document doc ,T lce);
 
+        public void AddLocation(Document doc,double x,double y)
+        {
+            Shape point = SpatialContext.MakePoint(x, y);
+            foreach (AbstractField field in strategy.CreateIndexableFields(point))
+            {
+                doc.Add(field);
+            }
+            string fielddata = SpatialContext.ToString(point);
+            string shapedata = point.ToString();
+
+            doc.Add(new Field(strategy.GetFieldName(), SpatialContext.ToString(point), Field.Store.YES, Field.Index.NOT_ANALYZED));
+        }
         public void AddUpdateLuceneIndex(T luceneData)
         {
             // init lucene
@@ -71,7 +116,27 @@ namespace LuceneSearchEngine
                 writer.Dispose();
             }
         }
-        public  void ClearLuceneIndexRecord(T entitydata)
+
+        public void AddUpdateLuceneIndex(T entitydata, IndexWriter writer)
+        {
+            _addToLuceneIndex(entitydata, writer);
+        }
+        public IndexWriter InitBatchIndexing()
+        {
+            StandardAnalyzer analyzer = new StandardAnalyzer(Version.LUCENE_30);
+            IndexWriter writer = new IndexWriter(_directory, analyzer, IndexWriter.MaxFieldLength.UNLIMITED);
+            return writer;
+        }
+
+        public void CleanUpBatchIndexing(IndexWriter writer)
+        {
+            writer.Commit();
+            writer.Optimize();
+            writer.Analyzer.Close();
+            writer.Dispose();
+        }
+
+        public void ClearLuceneIndexRecord(T entitydata)
         {
             // init lucene
             var analyzer = new StandardAnalyzer(Version.LUCENE_30);
@@ -107,6 +172,7 @@ namespace LuceneSearchEngine
             }
             return true;
         }
+
         public void Optimize()
         {
             var analyzer = new StandardAnalyzer(Version.LUCENE_30);
@@ -118,6 +184,7 @@ namespace LuceneSearchEngine
             }
         }
 
+    
         private Query parseQuery(string searchQuery, QueryParser parser)
         {
             Query query;
@@ -132,73 +199,153 @@ namespace LuceneSearchEngine
             return query;
         }
         public abstract T MapDocToData(Document doc);
-
-        public IEnumerable<T> Search(Dictionary<string, SearchTerm> searchTermFields, int limit = 20)
+        public abstract T MapDocToData(Document doc, SpatialArgs args);
+        private IndexSearcher Searcher
         {
-            // set up lucene searcher
-            using (IndexSearcher searcher = new IndexSearcher(_directory, false))
+            get
             {
-                BooleanQuery query = new BooleanQuery();
-                StandardAnalyzer analyzer = new StandardAnalyzer(Version.LUCENE_30);
-
-                foreach (KeyValuePair<string, SearchTerm> pair in searchTermFields)
+                if (searcher == null)
                 {
-                    if (pair.Value.RangeTerm)
-                    {
-                        NumericRangeQuery<int> nq = NumericRangeQuery.NewIntRange(pair.Key, pair.Value.iFrom, pair.Value.iTo, true, true);
-                        query.Add(nq, pair.Value.TermOccur);
-                    }
-                    else
-                    {
-                        QueryParser parser = new QueryParser(Version.LUCENE_30, pair.Key, analyzer);
-                        Query pquery = parseQuery(pair.Value.Term, parser);
-
-                        query.Add(pquery, pair.Value.TermOccur);
-                    }
+                    indexReader = IndexReader.Open(_directory, true);
+                    searcher = new IndexSearcher(indexReader);
                 }
-                ScoreDoc[] hits = searcher.Search(query, null, limit, Sort.RELEVANCE).ScoreDocs;
-                IEnumerable<T> results = hits.Select(hit => MapDocToData(searcher.Doc(hit.Doc))).ToList();
-                analyzer.Close();
-                searcher.Dispose();
-                return results;
-
+                return searcher;
             }
         }
-        public IEnumerable<T> Search (string searchQuery, List<string> searchFields,int limit=20)
+        public void SetSearcher()
+        {
+            indexReader = IndexReader.Open(_directory, true);
+            searcher = new IndexSearcher(indexReader);
+        }
+        public void CleanSearcher()
+        {
+            indexReader.Dispose();
+            searcher.Dispose();
+            searcher = null;
+            indexReader = null;
+        }
+
+        private IEnumerable<T> PageResult(ScoreDoc[] hits,int page, int resultsperpage,SpatialArgs args=null)
+        {
+            IEnumerable<T> results = hits.Select(hit => MapDocToData(Searcher.Doc(hit.Doc), args)).Skip(resultsperpage * page).Take(resultsperpage).ToList();
+            return results;
+        }
+        public IEnumerable<T> Search(Dictionary<string, SearchTerm> SearchTermFields, int page, int ResultsPerPage, int limit = 20)
+        {
+            // set up lucene searcher
+            BooleanQuery query = new BooleanQuery();
+            StandardAnalyzer analyzer = new StandardAnalyzer(Version.LUCENE_30);
+
+            foreach (KeyValuePair<string, SearchTerm> pair in SearchTermFields)
+            {
+                if (pair.Value.RangeTerm)
+                {
+                    NumericRangeQuery<int> nq = NumericRangeQuery.NewIntRange(pair.Key, pair.Value.iFrom, pair.Value.iTo, true, true);
+                    query.Add(nq, pair.Value.TermOccur);
+                }
+                else
+                {
+                    QueryParser parser = new QueryParser(Version.LUCENE_30, pair.Key, analyzer);
+                    Query pquery = parseQuery(pair.Value.Term, parser);
+
+                    query.Add(pquery, pair.Value.TermOccur);
+                }
+            }
+            ScoreDoc[] hits = Searcher.Search(query, null, limit, Sort.RELEVANCE).ScoreDocs;
+            analyzer.Close();
+            return PageResult(hits, page, ResultsPerPage);
+        }
+
+        public IEnumerable<T> Search(Dictionary<string, SearchTerm> searchTermFields, 
+            Double latitude, Double longitude, int distance, 
+            int page, int ResultsPerPage, int limit = 20)
+        {
+            System.Diagnostics.Stopwatch stopWatch = new System.Diagnostics.Stopwatch();
+            stopWatch.Start();
+
+            BooleanQuery query = new BooleanQuery();
+            StandardAnalyzer analyzer = new StandardAnalyzer(Version.LUCENE_30);
+
+            foreach (KeyValuePair<string, SearchTerm> pair in searchTermFields)
+            {
+                if (pair.Value.RangeTerm)
+                {
+                    NumericRangeQuery<int> nq = NumericRangeQuery.NewIntRange(pair.Key, pair.Value.iFrom, pair.Value.iTo, true, true);
+                    query.Add(nq, pair.Value.TermOccur);
+                }
+                else
+                {
+                    QueryParser parser = new QueryParser(Version.LUCENE_30, pair.Key, analyzer);
+                    Query pquery = parseQuery(pair.Value.Term, parser);
+
+                    query.Add(pquery, pair.Value.TermOccur);
+                }
+            }
+            Point p = SpatialContext.MakePoint(latitude, longitude);
+            var circle = SpatialContext.MakeCircle(latitude, longitude, DistanceUtils.Dist2Degrees(distance, DistanceUtils.EARTH_EQUATORIAL_RADIUS_MI));
+            var args = new SpatialArgs(SpatialOperation.IsWithin, circle);
+            var filter = strategy.MakeFilter(args);
+            Query q = ((PointVectorStrategy)strategy).MakeQueryDistanceScore(args);
+            Sort sort = new Sort(new SortField("Distance", SortField.SCORE, true));
+            query.Add(q, Occur.MUST);
+            TopDocs topDocs = Searcher.Search(query, filter, limit, sort);
+            ScoreDoc[] hits = topDocs.ScoreDocs;
+            stopWatch.Stop();
+            // Get the elapsed time as a TimeSpan value.
+            TimeSpan ts = stopWatch.Elapsed;
+            System.Diagnostics.Debug.WriteLine(ts);
+            return PageResult(hits, page, ResultsPerPage,args);
+        }
+
+        public IEnumerable<T> Search (string searchQuery, List<string> searchFields, int page, int ResultsPerPage, int limit=20)
         {
             if (string.IsNullOrEmpty(searchQuery)) return new List<T>();
-
             IEnumerable<string> terms = searchQuery.Trim().Replace("-", " ").Split(' ').Where(x => !string.IsNullOrEmpty(x)).Select(x => x.Trim() + "*");
             string q = string.Join(" ", terms);
-
             // set up lucene searcher
-            using (IndexSearcher searcher = new IndexSearcher(_directory, false))
-            {
-                StandardAnalyzer analyzer = new StandardAnalyzer(Version.LUCENE_30);
 
-                MultiFieldQueryParser parser = new MultiFieldQueryParser(Version.LUCENE_30, searchFields.ToArray(), analyzer);
-                Query query = parseQuery(q, parser);
-                ScoreDoc[] hits = searcher.Search(query, null, limit, Sort.RELEVANCE).ScoreDocs;
-                IEnumerable<T> results = hits.Select(hit => MapDocToData(searcher.Doc(hit.Doc))).ToList();
-                analyzer.Close();
-                searcher.Dispose();
-                return results;
-                
-            }
+            StandardAnalyzer analyzer = new StandardAnalyzer(Version.LUCENE_30);
+
+            MultiFieldQueryParser parser = new MultiFieldQueryParser(Version.LUCENE_30, searchFields.ToArray(), analyzer);
+            Query query = parseQuery(q, parser);
+            ScoreDoc[] hits = Searcher.Search(query, null, limit, Sort.RELEVANCE).ScoreDocs;
+            analyzer.Close();
+            return PageResult(hits, page, ResultsPerPage);
         }
+
+        public IEnumerable<T> Search (Double latitude, Double longitude, int distance, int limit = 20)
+        {
+            Point p = SpatialContext.MakePoint(latitude, longitude);
+            var circle = SpatialContext.MakeCircle(latitude, longitude, DistanceUtils.Dist2Degrees(distance, DistanceUtils.EARTH_EQUATORIAL_RADIUS_MI));
+            var args = new SpatialArgs(SpatialOperation.IsWithin, circle);
+            var filter = strategy.MakeFilter(args);
+            Query q = ((PointVectorStrategy)strategy).MakeQueryDistanceScore(args);
+            Sort sort = new Sort(new SortField("Distance", SortField.SCORE, true));
+            TopDocs topDocs = Searcher.Search(q, filter, limit, sort);
+
+
+            ScoreDoc[] hits = topDocs.ScoreDocs;
+            IEnumerable<T> results = hits.Select(hit => MapDocToData(Searcher.Doc(hit.Doc),args)).ToList();
+            return results;
+        }
+
+        public double DocumentDistance(Document doc,SpatialArgs args)
+        {
+            var docPoint = (Point)SpatialContext.ReadShape(doc.Get(strategy.GetFieldName()));
+            double docDistDEG = SpatialContext.GetDistCalc().Distance(args.Shape.GetCenter(), docPoint);
+            double docDistInKM = DistanceUtils.Degrees2Dist(docDistDEG, DistanceUtils.EARTH_EQUATORIAL_RADIUS_KM);
+            return docDistInKM;
+        }
+
         public IEnumerable<T> GetAllIndexRecords()
         {
             // validate search index
             if (!System.IO.Directory.EnumerateFiles(_luceneDir).Any()) return new List<T>();
 
             // set up lucene searcher
-            IndexSearcher searcher = new IndexSearcher(_directory, false);
-            IndexReader reader = IndexReader.Open(_directory, false);
             List<Document> docs = new List<Document>();
-            var term = reader.TermDocs();
-            while (term.Next()) docs.Add(searcher.Doc(term.Doc));
-            reader.Dispose();
-            searcher.Dispose();
+            var term = indexReader.TermDocs();
+            while (term.Next()) docs.Add(Searcher.Doc(term.Doc));
             return docs.Select(MapDocToData).ToList();
         }
 
