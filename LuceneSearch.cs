@@ -98,10 +98,8 @@ namespace LuceneSearchEngine
             {
                 doc.Add(field);
             }
-            string fielddata = SpatialContext.ToString(point);
-            string shapedata = point.ToString();
-
-            doc.Add(new Field(strategy.GetFieldName(), SpatialContext.ToString(point), Field.Store.YES, Field.Index.NOT_ANALYZED));
+            Spatial4n.Core.Io.ShapeReadWriter srw = new Spatial4n.Core.Io.ShapeReadWriter(SpatialContext);         
+            doc.Add(new Field(strategy.GetFieldName(), srw.WriteShape(point), Field.Store.YES, Field.Index.NOT_ANALYZED));
         }
         public void AddUpdateLuceneIndex(T luceneData)
         {
@@ -331,7 +329,8 @@ namespace LuceneSearchEngine
 
         public double DocumentDistance(Document doc,SpatialArgs args)
         {
-            var docPoint = (Point)SpatialContext.ReadShape(doc.Get(strategy.GetFieldName()));
+            Spatial4n.Core.Io.ShapeReadWriter srw = new Spatial4n.Core.Io.ShapeReadWriter(SpatialContext);
+            var docPoint = (Point)srw.ReadShape(doc.Get(strategy.GetFieldName()));
             double docDistDEG = SpatialContext.GetDistCalc().Distance(args.Shape.GetCenter(), docPoint);
             double docDistInKM = DistanceUtils.Degrees2Dist(docDistDEG, DistanceUtils.EARTH_EQUATORIAL_RADIUS_KM);
             return docDistInKM;
