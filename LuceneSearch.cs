@@ -225,7 +225,8 @@ namespace LuceneSearchEngine
 
         private IEnumerable<T> PageResult(ScoreDoc[] hits,int page, int resultsperpage,SpatialArgs args=null)
         {
-            IEnumerable<T> results = hits.Select(hit => MapDocToData(Searcher.Doc(hit.Doc), args)).Skip(resultsperpage * page).Take(resultsperpage).ToList();
+            IEnumerable<T> results = hits.Select(hit => MapDocToData(Searcher.Doc(hit.Doc), args)).Skip(resultsperpage *(page-1)).Take(resultsperpage).ToList();
+            //.ToList();
             return results;
         }
         public IEnumerable<T> Search(Dictionary<string, SearchTerm> SearchTermFields, int page, int ResultsPerPage, int limit = 20)
