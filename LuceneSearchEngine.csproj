@@ -97,6 +97,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="IBaseLuceneEntity.cs" />
+    <Compile Include="LuceneResults.cs" />
     <Compile Include="LuceneSearch.cs" />
     <Compile Include="LuceneSettings.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

@@ -8,11 +8,25 @@ namespace LuceneSearchEngine
 {
     public class SearchTerm
     {
+        /// <summary>
+        /// Term Occurance in search
+        /// </summary>
         public Lucene.Net.Search.Occur TermOccur {get; set;}
+        /// <summary>
+        /// The Query Term
+        /// </summary>
         public string Term { get; set; }
-
+        /// <summary>
+        /// The Term is a range
+        /// </summary>
         public bool RangeTerm { get { return !string.IsNullOrEmpty(From) && !string.IsNullOrEmpty(To); } }
+        /// <summary>
+        /// Starting Range of the term
+        /// </summary>
         public string From { get; set; }
+        /// <summary>
+        /// Ending Range of the Term
+        /// </summary>
         public string To { get; set; }
         public int? iFrom
         {
@@ -37,7 +51,6 @@ namespace LuceneSearchEngine
             TermOccur = toccur;
             Term = term;
         }
-
         public SearchTerm(DateTime dFrom, DateTime dTo, Lucene.Net.Search.Occur toccur = Lucene.Net.Search.Occur.MUST)
         {
             From = Utility.DateSerialize(dFrom);
