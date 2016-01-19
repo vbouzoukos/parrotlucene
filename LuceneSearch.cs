@@ -25,14 +25,14 @@ namespace LuceneSearchEngine
     abstract public class LuceneSearch<T> where T : IBaseLuceneEntity
     {
         #region Privates
-        private FSDirectory directoryTemp;
+        private FSDirectory directoryTemp=null;
         private string indexname = "lucene_index";
 
         private SpatialContext sptctx=null;
         private SpatialStrategy strategy = null;
         private IndexSearcher searcher = null;
         private IndexReader indexReader = null;
-        private StandardAnalyzer sanalyzer =null;
+        private ACIAnalyzer sanalyzer =null;
 
         private ShapeReadWriter shaperw = null;
         #endregion
@@ -143,7 +143,7 @@ namespace LuceneSearchEngine
         /// <returns>The index writer</returns>
         public IndexWriter InitBatchIndexing()
         {
-            StandardAnalyzer analyzer = new StandardAnalyzer(Version.LUCENE_30);
+            ACIAnalyzer analyzer = new ACIAnalyzer(Version.LUCENE_30);//ASCIIFoldingFilterFactory
             IndexWriter writer = new IndexWriter(directory, analyzer, IndexWriter.MaxFieldLength.UNLIMITED);
             return writer;
         }
@@ -219,7 +219,7 @@ namespace LuceneSearchEngine
         public void ClearLuceneIndexRecord(T entitydata)
         {
             // init lucene
-            var analyzer = new StandardAnalyzer(Version.LUCENE_30);
+            var analyzer = new ACIAnalyzer(Version.LUCENE_30);
             using (var writer = new IndexWriter(directory, analyzer, IndexWriter.MaxFieldLength.UNLIMITED))
             {
             // remove older index entry
@@ -239,7 +239,7 @@ namespace LuceneSearchEngine
         {
             try
             {
-                var analyzer = new StandardAnalyzer(Version.LUCENE_30);
+                var analyzer = new ACIAnalyzer(Version.LUCENE_30);
                 using (var writer = new IndexWriter(directory, analyzer, true, IndexWriter.MaxFieldLength.UNLIMITED))
                 {
                     // remove older index entries
@@ -261,7 +261,7 @@ namespace LuceneSearchEngine
         /// </summary>
         public void Optimize()
         {
-            var analyzer = new StandardAnalyzer(Version.LUCENE_30);
+            var analyzer = new ACIAnalyzer(Version.LUCENE_30);
             using (var writer = new IndexWriter(directory, analyzer, IndexWriter.MaxFieldLength.UNLIMITED))
             {
                 analyzer.Close();
@@ -306,12 +306,12 @@ namespace LuceneSearchEngine
         /// <returns>Entity of document</returns>
         public abstract T MapDocToData(Document doc, SpatialArgs args);
 
-        private StandardAnalyzer Analyzer
+        private ACIAnalyzer Analyzer
         {
             get
             {
                 if (sanalyzer == null)
-                    sanalyzer = new StandardAnalyzer(Version.LUCENE_30);
+                    sanalyzer = new ACIAnalyzer(Version.LUCENE_30);
                 return sanalyzer;
             }
         }

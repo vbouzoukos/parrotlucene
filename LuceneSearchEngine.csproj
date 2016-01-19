@@ -96,6 +96,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ACIAnalyzer.cs" />
     <Compile Include="IBaseLuceneEntity.cs" />
     <Compile Include="LuceneResults.cs" />
     <Compile Include="LuceneSearch.cs" />
