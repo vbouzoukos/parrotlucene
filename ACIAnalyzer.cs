@@ -80,6 +80,7 @@ namespace LuceneSearchEngine
             TokenStream result = new StandardFilter(tokenStream);
             result = new LowerCaseFilter(result);
             result = new ASCIIFoldingFilter(result);
+            result = new GreekAccentFilter(result);
             result = new StopFilter(enableStopPositionIncrements, result, stopSet);
             return result;
         }
@@ -123,6 +124,8 @@ namespace LuceneSearchEngine
                 streams.tokenStream = new StandardTokenizer(matchVersion, reader);
                 streams.filteredTokenStream = new StandardFilter(streams.tokenStream);
                 streams.filteredTokenStream = new LowerCaseFilter(streams.filteredTokenStream);
+                streams.filteredTokenStream = new ASCIIFoldingFilter(streams.filteredTokenStream);
+                streams.filteredTokenStream = new GreekAccentFilter(streams.filteredTokenStream);
                 streams.filteredTokenStream = new StopFilter(enableStopPositionIncrements,
                                                              streams.filteredTokenStream, stopSet);
             }

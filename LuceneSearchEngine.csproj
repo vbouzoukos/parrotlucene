@@ -97,6 +97,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ACIAnalyzer.cs" />
+    <Compile Include="GreekAccentFilter.cs" />
     <Compile Include="IBaseLuceneEntity.cs" />
     <Compile Include="LuceneResults.cs" />
     <Compile Include="LuceneSearch.cs" />
