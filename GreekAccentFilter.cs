@@ -1,59 +1,9 @@
-﻿/* 
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- * 
- * http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+﻿using Lucene.Net.Analysis;
 using Lucene.Net.Analysis.Tokenattributes;
 using ArrayUtil = Lucene.Net.Util.ArrayUtil;
 
-namespace Lucene.Net.Analysis
+namespace LuceneSearchEngine
 {
-
-    /// <summary> This class converts alphabetic, numeric, and symbolic Unicode characters
-    /// which are not in the first 127 ASCII characters (the "Basic Latin" Unicode
-    /// block) into their ASCII equivalents, if one exists.
-    /// 
-    /// Characters from the following Unicode blocks are converted; however, only
-    /// those characters with reasonable ASCII alternatives are converted:
-    /// 
-    /// <list type="bullet">
-    /// <item>C1 Controls and Latin-1 Supplement: <a href="http://www.unicode.org/charts/PDF/U0080.pdf">http://www.unicode.org/charts/PDF/U0080.pdf</a></item>
-    /// <item>Latin Extended-A: <a href="http://www.unicode.org/charts/PDF/U0100.pdf">http://www.unicode.org/charts/PDF/U0100.pdf</a></item>
-    /// <item>Latin Extended-B: <a href="http://www.unicode.org/charts/PDF/U0180.pdf">http://www.unicode.org/charts/PDF/U0180.pdf</a></item>
-    /// <item>Latin Extended Additional: <a href="http://www.unicode.org/charts/PDF/U1E00.pdf">http://www.unicode.org/charts/PDF/U1E00.pdf</a></item>
-    /// <item>Latin Extended-C: <a href="http://www.unicode.org/charts/PDF/U2C60.pdf">http://www.unicode.org/charts/PDF/U2C60.pdf</a></item>
-    /// <item>Latin Extended-D: <a href="http://www.unicode.org/charts/PDF/UA720.pdf">http://www.unicode.org/charts/PDF/UA720.pdf</a></item>
-    /// <item>IPA Extensions: <a href="http://www.unicode.org/charts/PDF/U0250.pdf">http://www.unicode.org/charts/PDF/U0250.pdf</a></item>
-    /// <item>Phonetic Extensions: <a href="http://www.unicode.org/charts/PDF/U1D00.pdf">http://www.unicode.org/charts/PDF/U1D00.pdf</a></item>
-    /// <item>Phonetic Extensions Supplement: <a href="http://www.unicode.org/charts/PDF/U1D80.pdf">http://www.unicode.org/charts/PDF/U1D80.pdf</a></item>
-    /// <item>General Punctuation: <a href="http://www.unicode.org/charts/PDF/U2000.pdf">http://www.unicode.org/charts/PDF/U2000.pdf</a></item>
-    /// <item>Superscripts and Subscripts: <a href="http://www.unicode.org/charts/PDF/U2070.pdf">http://www.unicode.org/charts/PDF/U2070.pdf</a></item>
-    /// <item>Enclosed Alphanumerics: <a href="http://www.unicode.org/charts/PDF/U2460.pdf">http://www.unicode.org/charts/PDF/U2460.pdf</a></item>
-    /// <item>Dingbats: <a href="http://www.unicode.org/charts/PDF/U2700.pdf">http://www.unicode.org/charts/PDF/U2700.pdf</a></item>
-    /// <item>Supplemental Punctuation: <a href="http://www.unicode.org/charts/PDF/U2E00.pdf">http://www.unicode.org/charts/PDF/U2E00.pdf</a></item>
-    /// <item>Alphabetic Presentation Forms: <a href="http://www.unicode.org/charts/PDF/UFB00.pdf">http://www.unicode.org/charts/PDF/UFB00.pdf</a></item>
-    /// <item>Halfwidth and Fullwidth Forms: <a href="http://www.unicode.org/charts/PDF/UFF00.pdf">http://www.unicode.org/charts/PDF/UFF00.pdf</a></item>
-    /// </list>
-    /// 
-    /// See: <a href="http://en.wikipedia.org/wiki/Latin_characters_in_Unicode">http://en.wikipedia.org/wiki/Latin_characters_in_Unicode</a>
-    /// 
-    /// The set of character conversions supported by this class is a superset of
-    /// those supported by Lucene's <see cref="ISOLatin1AccentFilter" /> which strips
-    /// accents from Latin1 characters.  For example, '&#192;' will be replaced by
-    /// 'a'.
-    /// </summary>
     public sealed class GreekAccentFilter : TokenFilter
     {
         public GreekAccentFilter(TokenStream input) : base(input)
@@ -77,9 +27,9 @@ namespace Lucene.Net.Analysis
                 for (int i = 0; i < length; ++i)
                 {
                     char c = buffer[i];
-                    if (c >= '\u0080')
+                    if (c >= 'Ά')
                     {
-                        FoldToASCII(buffer, length);
+                        Transform(buffer, length);
                         termAtt.SetTermBuffer(output, 0, outputPos);
                         break;
                     }
@@ -92,14 +42,14 @@ namespace Lucene.Net.Analysis
             }
         }
 
-        /// <summary> Converts characters above ASCII to their ASCII equivalents.  For example,
+        /// <summary> Converts characters with tones.  For example,
         /// accents are removed from accented characters.
         /// </summary>
         /// <param name="input">The string to fold
         /// </param>
         /// <param name="length">The number of characters in the input string
         /// </param>
-        public void FoldToASCII(char[] input, int length)
+        public void Transform(char[] input, int length)
         {
             // Worst-case length required:
             int maxSizeNeeded = 4 * length;
@@ -115,7 +65,7 @@ namespace Lucene.Net.Analysis
                 char c = input[pos];
 
                 // Quick test: if it's not in range then just keep current character
-                if (c < '\u0080')
+                if (c < 'Ά')
                 {
                     output[outputPos++] = c;
                 }
@@ -145,17 +95,11 @@ namespace Lucene.Net.Analysis
                             output[outputPos++] = 'Η';
                             break;
                         case 'ί':
-                            output[outputPos++] = 'ι';
-                            break;
-                        case 'Ί':
-                            output[outputPos++] = 'Ι';
-                            break;
                         case 'ΐ':
-                            output[outputPos++] = 'ι';
-                            break;
                         case 'ϊ':
                             output[outputPos++] = 'ι';
                             break;
+                        case 'Ί':
                         case 'Ϊ':
                             output[outputPos++] = 'Ι';
                             break;
@@ -165,20 +109,14 @@ namespace Lucene.Net.Analysis
                         case 'Ό':
                             output[outputPos++] = 'Ο';
                             break;
-                        case 'ύ':
-                            output[outputPos++] = 'υ';
-                            break;
                         case 'Ύ':
-                            output[outputPos++] = 'Υ';
-                            break;
-                        case 'ΰ':
-                            output[outputPos++] = 'υ';
-                            break;
-                        case 'ϋ':
-                            output[outputPos++] = 'υ';
-                            break;
                         case 'Ϋ':
                             output[outputPos++] = 'Υ';
+                            break;
+                        case 'ύ':
+                        case 'ΰ':
+                        case 'ϋ':
+                            output[outputPos++] = 'υ';
                             break;
                         case 'ώ':
                             output[outputPos++] = 'ω';
