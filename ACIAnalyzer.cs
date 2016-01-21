@@ -39,7 +39,7 @@ namespace LuceneSearchEngine
         public ACIAnalyzer(Version matchVersion, ISet<string> stopWords)
         {
             stopSet = stopWords;
-            SetOverridesTokenStreamMethod<ACIAnalyzer>();
+            //SetOverridesTokenStreamMethod<ACIAnalyzer>();
             enableStopPositionIncrements = StopFilter.GetEnablePositionIncrementsVersionDefault(matchVersion);
             replaceInvalidAcronym = matchVersion.OnOrAfter(Version.LUCENE_24);
             this.matchVersion = matchVersion;
@@ -110,13 +110,13 @@ namespace LuceneSearchEngine
 
         public override TokenStream ReusableTokenStream(System.String fieldName, System.IO.TextReader reader)
         {
-            if (overridesTokenStreamMethod)
-            {
-                // LUCENE-1678: force fallback to tokenStream() if we
-                // have been subclassed and that subclass overrides
-                // tokenStream but not reusableTokenStream
-                return TokenStream(fieldName, reader);
-            }
+            //if (overridesTokenStreamMethod)
+            //{
+            //    // LUCENE-1678: force fallback to tokenStream() if we
+            //    // have been subclassed and that subclass overrides
+            //    // tokenStream but not reusableTokenStream
+            //    return TokenStream(fieldName, reader);
+            //}
             SavedStreams streams = (SavedStreams)PreviousTokenStream;
             if (streams == null)
             {
@@ -137,7 +137,7 @@ namespace LuceneSearchEngine
             }
             streams.tokenStream.MaxTokenLength = maxTokenLength;
 
-            streams.tokenStream.SetReplaceInvalidAcronym(replaceInvalidAcronym);
+            //streams.tokenStream.SetReplaceInvalidAcronym(replaceInvalidAcronym);
 
             return streams.filteredTokenStream;
         }

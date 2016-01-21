@@ -14,6 +14,7 @@ using Version = Lucene.Net.Util.Version;
 using Lucene.Net.Spatial;
 using Lucene.Net.Spatial.Queries;
 using Lucene.Net.Spatial.Vector;
+using Lucene.Net.Spatial.Util;
 
 using Spatial4n.Core.Context;
 using Spatial4n.Core.Distance;
@@ -112,9 +113,9 @@ namespace LuceneSearchEngine
         /// <param name="doc">Document to add the location</param>
         /// <param name="x">Latitude</param>
         /// <param name="y">Longitude</param>
-        public void AddLocation(Document doc, double x, double y)
+        public void AddLocation(Document doc, double phi, double lamda)
         {
-            Shape point = SpatialContext.MakePoint(x, y);
+            Shape point = SpatialContext.MakePoint(phi, lamda);
             foreach (AbstractField field in strategy.CreateIndexableFields(point))
             {
                 doc.Add(field);
@@ -132,7 +133,7 @@ namespace LuceneSearchEngine
             var docPoint = (Point)ShapeReaderWriter.ReadShape(doc.Get(strategy.GetFieldName()));
             double docDistDEG = SpatialContext.GetDistCalc().Distance(args.Shape.GetCenter(), docPoint);
             double docDistInKM = DistanceUtils.Degrees2Dist(docDistDEG, DistanceUtils.EARTH_EQUATORIAL_RADIUS_KM);
-            return docDistInKM;
+            return docDistInKM;//docDistDEG;// 
         }
         #endregion
 
@@ -319,7 +320,7 @@ namespace LuceneSearchEngine
         /// <summary>
         /// Index Searcher Object
         /// </summary>
-        private IndexSearcher Searcher
+        public IndexSearcher Searcher
         {
             get
             {
@@ -364,6 +365,7 @@ namespace LuceneSearchEngine
         {
             LuceneResults<T> results = new LuceneResults<T>();
             int cpage = page > 0 ? page - 1 : 1;
+            
             results.Results = hits.Select(hit => MapDocToData(Searcher.Doc(hit.Doc), args)).Skip(resultsperpage *(cpage)).Take(resultsperpage).ToList();
             results.ResultsCount = hits.Length;
             return results;
@@ -409,35 +411,48 @@ namespace LuceneSearchEngine
         /// Performs a boolean search into a location circle area
         /// </summary>
         /// <param name="SearchTermFields">Query input</param>
-        /// <param name="latitude">latitude of search area</param>
-        /// <param name="longitude">longitude of search area</param>
+        /// <param name="latitude">latitude of search area(φ)</param>
+        /// <param name="longitude">longitude of search area(λ)</param>
         /// <param name="distance">Radius distance in km</param>
         /// <param name="page">Results Page</param>
         /// <param name="ResultsPerPage">Results per page</param>
         /// <param name="limit">limit result default is 20</param>
         /// <returns>Query result</returns>
         public LuceneResults<T> Search(Dictionary<string, SearchTerm> SearchTermFields, 
-            double latitude, double longitude, double distance, 
+            double latitude, double longitude, double radius, 
             int page, int ResultsPerPage, int limit = 20)
         {
             //System.Diagnostics.Stopwatch stopWatch = new System.Diagnostics.Stopwatch();
             //stopWatch.Start();
+
             BooleanQuery query = SearchTermQuery(SearchTermFields);
 
             Point p = SpatialContext.MakePoint(latitude, longitude);
-            var circle = SpatialContext.MakeCircle(latitude, longitude, DistanceUtils.Dist2Degrees(distance, DistanceUtils.EARTH_EQUATORIAL_RADIUS_MI));
-            var args = new SpatialArgs(SpatialOperation.IsWithin, circle);
-            var filter = strategy.MakeFilter(args);
-            Query q = ((PointVectorStrategy)strategy).MakeQueryDistanceScore(args);
-            Sort sort = new Sort(new SortField("Distance", SortField.SCORE, true));
+            var circle = SpatialContext.MakeCircle(latitude, longitude, DistanceUtils.Dist2Degrees(radius, DistanceUtils.EARTH_EQUATORIAL_RADIUS_KM));
+            var spatialArgs = new SpatialArgs(SpatialOperation.IsWithin, circle);
+            var filter = strategy.MakeFilter(spatialArgs);
+            Query q = ((PointVectorStrategy)strategy).MakeQueryDistanceScore(spatialArgs);
+
+            //Lucene.Net.Search.Function.ValueSource valueSource = ((PointVectorStrategy)strategy).MakeDistanceValueSource(p);
+            //Sort distSort = new Sort(valueSource.getSortField(false)).rewrite(searcher);
+            //TopFieldCollector tfc= TopFieldCollector.Create(
+
+            //TODO Make SortField Array to pass field sorting
+
+            Sort sort = new Sort(new SortField("score", SortField.SCORE, true));
             query.Add(q, Occur.MUST);
+            //BooleanQuery bq = new BooleanQuery();
+            //bq.Add(q, Occur.MUST);
+            //bq.Add(query, Occur.MUST);
+
             TopDocs topDocs = Searcher.Search(query, filter, limit, sort);
             ScoreDoc[] hits = topDocs.ScoreDocs;
+
             //stopWatch.Stop();
             // Get the elapsed time as a TimeSpan value.
             //TimeSpan ts = stopWatch.Elapsed;
             //System.Diagnostics.Debug.WriteLine(ts);
-            return PageResult(hits, page, ResultsPerPage,args);
+            return PageResult(hits, page, ResultsPerPage, spatialArgs);
         }
         /// <summary>
         /// Search input terms on given fields
@@ -470,7 +485,7 @@ namespace LuceneSearchEngine
         /// <returns></returns>
         public LuceneResults<T> GetAllIndexRecords()
         {
-            // validate search index
+            //validate search index
             if (!System.IO.Directory.EnumerateFiles(luceneDir).Any())
             {
                 return new LuceneResults<T>
@@ -482,6 +497,7 @@ namespace LuceneSearchEngine
             while (term.Next()) docs.Add(Searcher.Doc(term.Doc));
             return new LuceneResults<T>
             { Results = docs.Select(MapDocToData).ToList(), ResultsCount = docs.Count };
+
         }
         #endregion
     }
