@@ -374,11 +374,11 @@ namespace LuceneSearchEngine
             Query query;
             try
             {
-                query = parser.Parse(string.Format("*{0}*~0.7",searchQuery.Trim()));
+                query = parser.Parse(string.Format("{0}*~0.7",searchQuery.Trim()));
             }
             catch (ParseException)
             {
-                query = parser.Parse(string.Format("*{0}*~0.7", QueryParser.Escape(searchQuery.Trim())));
+                query = parser.Parse(string.Format("{0}*~0.7", QueryParser.Escape(searchQuery.Trim())));
             }
             return query;
         }
