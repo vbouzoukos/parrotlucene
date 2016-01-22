@@ -374,20 +374,31 @@ namespace LuceneSearchEngine
             Query query;
             try
             {
-                query = parser.Parse(string.Format("{0}*~0.7",searchQuery.Trim()));
+                query = parser.Parse(string.Format("{0}~",searchQuery.Trim()));
             }
             catch (ParseException)
             {
-                query = parser.Parse(string.Format("{0}*~0.7", QueryParser.Escape(searchQuery.Trim())));
+                query = parser.Parse(string.Format("{0}~0.7", QueryParser.Escape(searchQuery.Trim())));
             }
             return query;
         }
-
-        /// <summary>
-        /// Constracts a boolean query from a searchterm dictionary
-        /// </summary>
-        /// <param name="SearchTermFields"></param>
-        /// <returns></returns>
+        private Query wildparseQuery(string searchQuery, QueryParser parser)
+        {
+            Query query;
+            try
+            {
+                query = parser.Parse(string.Format("{0}*", searchQuery.Trim()));
+            }
+            catch (ParseException)
+            {
+                query = parser.Parse(string.Format("{0}*", QueryParser.Escape(searchQuery.Trim())));
+            }
+            return query;
+        }        /// <summary>
+                 /// Constracts a boolean query from a searchterm dictionary
+                 /// </summary>
+                 /// <param name="SearchTermFields"></param>
+                 /// <returns></returns>
         private BooleanQuery SearchTermQuery(List<SearchTerm> SearchTermFields)
         {
             BooleanQuery query = new BooleanQuery();
@@ -408,6 +419,12 @@ namespace LuceneSearchEngine
                 {
                     QueryParser parser = new QueryParser(Version.LUCENE_30, entry.Field, Analyzer);
                     Query pquery = fuzzyparseQuery(entry.Term, parser);
+                    query.Add(pquery, entry.TermOccur);
+                }
+                else if (entry.SearchingOption == SearchFieldOption.FUZZY)
+                {
+                    QueryParser parser = new QueryParser(Version.LUCENE_30, entry.Field, Analyzer);
+                    Query pquery = wildparseQuery(entry.Term, parser);
                     query.Add(pquery, entry.TermOccur);
                 }
                 else

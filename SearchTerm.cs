@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace LuceneSearchEngine
 {
-    public enum SearchFieldOption {TERM,LIKE,INTRANGE,DOUBLERANGE }
+    public enum SearchFieldOption {TERM,LIKE,INTRANGE,DOUBLERANGE,FUZZY }
     public class SearchTerm
     {
         /// <summary>
