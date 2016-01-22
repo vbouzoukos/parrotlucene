@@ -286,6 +286,7 @@ namespace LuceneSearchEngine
         /// <param name="args">Search spatial arguments</param>
         /// <returns>Entity of document</returns>
         public abstract T MapDocToData(Document doc, SpatialArgs args);
+        public abstract T MapDocToData(Document doc, SpatialArgs args,float score);
 
         private ACIAnalyzer Analyzer
         {
@@ -346,7 +347,7 @@ namespace LuceneSearchEngine
             LuceneResults<T> results = new LuceneResults<T>();
             int cpage = page > 0 ? page - 1 : 1;
             
-            results.Results = hits.Select(hit => MapDocToData(Searcher.Doc(hit.Doc), args)).Skip(resultsperpage *(cpage)).Take(resultsperpage).ToList();
+            results.Results = hits.Select(hit => MapDocToData(Searcher.Doc(hit.Doc) , args, hit.Score)).Skip(resultsperpage *(cpage)).Take(resultsperpage).ToList();
             results.ResultsCount = hits.Length;
             return results;
         }
@@ -394,11 +395,13 @@ namespace LuceneSearchEngine
                 query = parser.Parse(string.Format("{0}*", QueryParser.Escape(searchQuery.Trim())));
             }
             return query;
-        }        /// <summary>
-                 /// Constracts a boolean query from a searchterm dictionary
-                 /// </summary>
-                 /// <param name="SearchTermFields"></param>
-                 /// <returns></returns>
+        }
+
+        /// <summary>
+        /// Constracts a boolean query from a searchterm dictionary
+        /// </summary>
+        /// <param name="SearchTermFields"></param>
+        /// <returns></returns>
         private BooleanQuery SearchTermQuery(List<SearchTerm> SearchTermFields)
         {
             BooleanQuery query = new BooleanQuery();
@@ -418,15 +421,16 @@ namespace LuceneSearchEngine
                 else if (entry.SearchingOption == SearchFieldOption.LIKE)
                 {
                     QueryParser parser = new QueryParser(Version.LUCENE_30, entry.Field, Analyzer);
-                    Query pquery = fuzzyparseQuery(entry.Term, parser);
+                    Query pquery = wildparseQuery(AccentPhoneticTransform.Transform(entry.Term), parser);
                     query.Add(pquery, entry.TermOccur);
                 }
                 else if (entry.SearchingOption == SearchFieldOption.FUZZY)
                 {
                     QueryParser parser = new QueryParser(Version.LUCENE_30, entry.Field, Analyzer);
-                    Query pquery = wildparseQuery(entry.Term, parser);
+                    Query pquery = fuzzyparseQuery(AccentPhoneticTransform.Transform(entry.Term), parser);
                     query.Add(pquery, entry.TermOccur);
                 }
+
                 else
                 {
                     QueryParser parser = new QueryParser(Version.LUCENE_30, entry.Field, Analyzer);
@@ -489,11 +493,11 @@ namespace LuceneSearchEngine
             Sort sort = null;
             if (sorting == null)
             {
-                sort = new Sort(new SortField("score", SortField.SCORE, true));
+                sort = new Sort(new SortField("Distance", SortField.SCORE, true));
             }
             else
             {
-                sorting.Add(new SortField("score", SortField.SCORE, true));
+                sorting.Add(new SortField("Distance", SortField.SCORE, true));
                 sort = new Sort(sorting.ToArray());
             }
             BooleanQuery areaQuery = new BooleanQuery();
@@ -531,15 +535,17 @@ namespace LuceneSearchEngine
             MultiFieldQueryParser parser = new MultiFieldQueryParser(Version.LUCENE_30, searchFields.ToArray(), Analyzer);
             Query query = parseQuery(q, parser);
             Sort sort = null;
+            ScoreDoc[] hits;
             if (sorting == null)
             {
-                sort = Sort.RELEVANCE;
+                hits = Searcher.Search(query,limit).ScoreDocs;
             }
             else
             {
                 sort = new Sort(sorting.ToArray());
+                hits = Searcher.Search(query, null, limit, sort).ScoreDocs;
             }
-            ScoreDoc[] hits = Searcher.Search(query, null, limit, Sort.RELEVANCE).ScoreDocs;
+
             return PageResult(hits, page, ResultsPerPage);
         }
 
