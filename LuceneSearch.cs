@@ -274,26 +274,6 @@ namespace LuceneSearchEngine
 
         #region Query
         /// <summary>
-        /// Parses a query from a search string
-        /// </summary>
-        /// <param name="searchQuery">User Input</param>
-        /// <param name="parser">Query Parser</param>
-        /// <returns></returns>
-        private Query parseQuery(string searchQuery, QueryParser parser)
-        {
-            Query query;
-            try
-            {
-                query = parser.Parse(searchQuery.Trim());
-            }
-            catch (ParseException)
-            {
-                query = parser.Parse(QueryParser.Escape(searchQuery.Trim()));
-            }
-            return query;
-        }
-
-        /// <summary>
         /// Base function Transforms Entity from a document
         /// </summary>
         /// <param name="doc">Document to transform</param>
@@ -370,24 +350,71 @@ namespace LuceneSearchEngine
             results.ResultsCount = hits.Length;
             return results;
         }
+        /// <summary>
+        /// Parses a query from a search string
+        /// </summary>
+        /// <param name="searchQuery">User Input</param>
+        /// <param name="parser">Query Parser</param>
+        /// <returns></returns>
+        private Query parseQuery(string searchQuery, QueryParser parser)
+        {
+            Query query;
+            try
+            {
+                query = parser.Parse(searchQuery.Trim());
+            }
+            catch (ParseException)
+            {
+                query = parser.Parse(QueryParser.Escape(searchQuery.Trim()));
+            }
+            return query;
+        }
+        private Query fuzzyparseQuery(string searchQuery, QueryParser parser)
+        {
+            Query query;
+            try
+            {
+                query = parser.Parse(string.Format("*{0}*~0.7",searchQuery.Trim()));
+            }
+            catch (ParseException)
+            {
+                query = parser.Parse(string.Format("*{0}*~0.7", QueryParser.Escape(searchQuery.Trim())));
+            }
+            return query;
+        }
 
-        private BooleanQuery SearchTermQuery(Dictionary<string, SearchTerm> SearchTermFields)
+        /// <summary>
+        /// Constracts a boolean query from a searchterm dictionary
+        /// </summary>
+        /// <param name="SearchTermFields"></param>
+        /// <returns></returns>
+        private BooleanQuery SearchTermQuery(List<SearchTerm> SearchTermFields)
         {
             BooleanQuery query = new BooleanQuery();
 
-            foreach (KeyValuePair<string, SearchTerm> pair in SearchTermFields)
+            foreach (SearchTerm entry in SearchTermFields)
             {
-                if (pair.Value.RangeTerm)
+                if (entry.SearchingOption==SearchFieldOption.INTRANGE)
                 {
-                    NumericRangeQuery<int> nq = NumericRangeQuery.NewIntRange(pair.Key, pair.Value.iFrom, pair.Value.iTo, true, true);
-                    query.Add(nq, pair.Value.TermOccur);
+                    NumericRangeQuery<int> nq = NumericRangeQuery.NewIntRange(entry.Field, entry.iFrom, entry.iTo, true, true);
+                    query.Add(nq, entry.TermOccur);
+                }
+                else if (entry.SearchingOption == SearchFieldOption.DOUBLERANGE)
+                {
+                    NumericRangeQuery<double> nq = NumericRangeQuery.NewDoubleRange(entry.Field, entry.dFrom, entry.dTo, true, true);
+                    query.Add(nq, entry.TermOccur);
+                }
+                else if (entry.SearchingOption == SearchFieldOption.LIKE)
+                {
+                    QueryParser parser = new QueryParser(Version.LUCENE_30, entry.Field, Analyzer);
+                    Query pquery = fuzzyparseQuery(entry.Term, parser);
+                    query.Add(pquery, entry.TermOccur);
                 }
                 else
                 {
-                    QueryParser parser = new QueryParser(Version.LUCENE_30, pair.Key, Analyzer);
-                    Query pquery = parseQuery(pair.Value.Term, parser);
-
-                    query.Add(pquery, pair.Value.TermOccur);
+                    QueryParser parser = new QueryParser(Version.LUCENE_30, entry.Field, Analyzer);
+                    Query pquery = parseQuery(entry.Term, parser);
+                    query.Add(pquery, entry.TermOccur);
                 }
             }
             return query;
@@ -400,11 +427,20 @@ namespace LuceneSearchEngine
         /// <param name="ResultsPerPage">Results per page</param>
         /// <param name="limit">limit result default is 20</param>
         /// <returns>Query result</returns>
-        public LuceneResults<T> Search(Dictionary<string, SearchTerm> SearchTermFields, int page, int ResultsPerPage, int limit = 20)
+        public LuceneResults<T> Search(List<SearchTerm> SearchTermFields, int page, int ResultsPerPage, int limit = 500, List<SortField> sorting = null)
         {
             // set up lucene searcher
             BooleanQuery query = SearchTermQuery(SearchTermFields);
-            ScoreDoc[] hits = Searcher.Search(query, null, limit, Sort.RELEVANCE).ScoreDocs;
+            Sort sort = null;
+            if (sorting == null)
+            {
+                sort = Sort.RELEVANCE;
+            }
+            else
+            {
+                sort = new Sort(sorting.ToArray());
+            }
+            ScoreDoc[] hits = Searcher.Search(query, null, limit, sort).ScoreDocs;
             return PageResult(hits, page, ResultsPerPage);
         }
         /// <summary>
@@ -418,9 +454,9 @@ namespace LuceneSearchEngine
         /// <param name="ResultsPerPage">Results per page</param>
         /// <param name="limit">limit result default is 20</param>
         /// <returns>Query result</returns>
-        public LuceneResults<T> Search(Dictionary<string, SearchTerm> SearchTermFields, 
+        public LuceneResults<T> Search(List<SearchTerm> SearchTermFields, 
             double latitude, double longitude, double radius, 
-            int page, int ResultsPerPage, int limit = 20)
+            int page, int ResultsPerPage, int limit = 20,List<SortField> sorting=null)
         {
             //System.Diagnostics.Stopwatch stopWatch = new System.Diagnostics.Stopwatch();
             //stopWatch.Start();
@@ -433,19 +469,21 @@ namespace LuceneSearchEngine
             var filter = strategy.MakeFilter(spatialArgs);
             Query q = ((PointVectorStrategy)strategy).MakeQueryDistanceScore(spatialArgs);
 
-            //Lucene.Net.Search.Function.ValueSource valueSource = ((PointVectorStrategy)strategy).MakeDistanceValueSource(p);
-            //Sort distSort = new Sort(valueSource.getSortField(false)).rewrite(searcher);
-            //TopFieldCollector tfc= TopFieldCollector.Create(
+            Sort sort = null;
+            if (sorting == null)
+            {
+                sort = new Sort(new SortField("score", SortField.SCORE, true));
+            }
+            else
+            {
+                sorting.Add(new SortField("score", SortField.SCORE, true));
+                sort = new Sort(sorting.ToArray());
+            }
+            BooleanQuery areaQuery = new BooleanQuery();
+            areaQuery.Add(query, Occur.MUST);
+            areaQuery.Add(q, Occur.MUST);
 
-            //TODO Make SortField Array to pass field sorting
-
-            Sort sort = new Sort(new SortField("score", SortField.SCORE, true));
-            query.Add(q, Occur.MUST);
-            //BooleanQuery bq = new BooleanQuery();
-            //bq.Add(q, Occur.MUST);
-            //bq.Add(query, Occur.MUST);
-
-            TopDocs topDocs = Searcher.Search(query, filter, limit, sort);
+            TopDocs topDocs = Searcher.Search(areaQuery, filter, limit, sort);
             ScoreDoc[] hits = topDocs.ScoreDocs;
 
             //stopWatch.Stop();
@@ -463,7 +501,7 @@ namespace LuceneSearchEngine
         /// <param name="ResultsPerPage">Results per page</param>
         /// <param name="limit">limit result default is 20</param>
         /// <returns>Query results</returns>
-        public LuceneResults<T> Search (string searchQuery, List<string> searchFields, int page, int ResultsPerPage, int limit=20)
+        public LuceneResults<T> Search (string searchQuery, List<string> searchFields, int page, int ResultsPerPage, int limit=500, List<SortField> sorting = null)
         {
             if (string.IsNullOrEmpty(searchQuery))
             {
@@ -475,6 +513,15 @@ namespace LuceneSearchEngine
             // set up lucene searcher
             MultiFieldQueryParser parser = new MultiFieldQueryParser(Version.LUCENE_30, searchFields.ToArray(), Analyzer);
             Query query = parseQuery(q, parser);
+            Sort sort = null;
+            if (sorting == null)
+            {
+                sort = Sort.RELEVANCE;
+            }
+            else
+            {
+                sort = new Sort(sorting.ToArray());
+            }
             ScoreDoc[] hits = Searcher.Search(query, null, limit, Sort.RELEVANCE).ScoreDocs;
             return PageResult(hits, page, ResultsPerPage);
         }

@@ -6,8 +6,13 @@ using System.Threading.Tasks;
 
 namespace LuceneSearchEngine
 {
+    public enum SearchFieldOption {TERM,LIKE,INTRANGE,DOUBLERANGE }
     public class SearchTerm
     {
+        /// <summary>
+        /// The term Field
+        /// </summary>
+        public string Field { get; set; }
         /// <summary>
         /// Term Occurance in search
         /// </summary>
@@ -19,7 +24,7 @@ namespace LuceneSearchEngine
         /// <summary>
         /// The Term is a range
         /// </summary>
-        public bool RangeTerm { get { return !string.IsNullOrEmpty(From) && !string.IsNullOrEmpty(To); } }
+        public SearchFieldOption SearchingOption { get; set; }
         /// <summary>
         /// Starting Range of the term
         /// </summary>
@@ -28,6 +33,7 @@ namespace LuceneSearchEngine
         /// Ending Range of the Term
         /// </summary>
         public string To { get; set; }
+
         public int? iFrom
         {
             get
@@ -46,16 +52,54 @@ namespace LuceneSearchEngine
                 return ret > 0 ? new int?(ret) : null;
             }
         }
-        public SearchTerm(string term="", Lucene.Net.Search.Occur toccur= Lucene.Net.Search.Occur.MUST)
+        public double? dFrom
         {
+            get
+            {
+                int ret = 0;
+                int.TryParse(From, out ret);
+                return ret > 0 ? new int?(ret) : null;
+            }
+        }
+        public double? dTo
+        {
+            get
+            {
+                int ret = 0;
+                int.TryParse(To, out ret);
+                return ret > 0 ? new int?(ret) : null;
+            }
+        }
+        public SearchTerm(string field,string term="",SearchFieldOption option=SearchFieldOption.TERM, Lucene.Net.Search.Occur toccur= Lucene.Net.Search.Occur.MUST)
+        {
+            Field = field;
             TermOccur = toccur;
             Term = term;
+            SearchingOption = option;
         }
-        public SearchTerm(DateTime dFrom, DateTime dTo, Lucene.Net.Search.Occur toccur = Lucene.Net.Search.Occur.MUST)
+        public SearchTerm(string field, DateTime dFrom, DateTime dTo, Lucene.Net.Search.Occur toccur = Lucene.Net.Search.Occur.MUST)
         {
+            Field = field;
             From = Utility.DateSerialize(dFrom);
             To = Utility.DateSerialize(dTo);
             TermOccur = toccur;
+            SearchingOption = SearchFieldOption.INTRANGE;
         }
+        public SearchTerm(string field, int from, int to, Lucene.Net.Search.Occur toccur = Lucene.Net.Search.Occur.MUST)
+        {
+            Field = field;
+            From = from.ToString();
+            To = to.ToString();
+            TermOccur = toccur;
+            SearchingOption = SearchFieldOption.INTRANGE;
+        }
+        public SearchTerm(string field, double from, double to, Lucene.Net.Search.Occur toccur = Lucene.Net.Search.Occur.MUST)
+        {
+            Field = field;
+            From = from.ToString();
+            To = to.ToString();
+            TermOccur = toccur;
+            SearchingOption = SearchFieldOption.DOUBLERANGE;
+       }
     }
 }
