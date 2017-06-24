@@ -20,6 +20,6 @@ namespace LuceneSearchEngine.Indexing.Entity
         [LuceneField]
         public double Lamda { get; set; }
         public double Distance { get; set; }
-
+        public ILuceneCustomMapper Mapper { get; set; }
     }
 }
