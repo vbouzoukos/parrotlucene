@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Web;
+using System.Reflection;
+
 using Lucene.Net.Analysis.Standard;
 using Lucene.Net.Documents;
 using Lucene.Net.Index;
@@ -21,9 +23,13 @@ using Spatial4n.Core.Distance;
 using Spatial4n.Core.Shapes;
 using Spatial4n.Core.Io;
 
-namespace LuceneSearchEngine
+using LuceneSearchEngine.Indexing.Entity;
+using LuceneSearchEngine.Indexing.Metadata;
+using LuceneSearchEngine.Error;
+
+namespace LuceneSearchEngine.Search.Core
 {
-    abstract public class LuceneSearch<T> where T : IBaseLuceneEntity
+    abstract public class CoreSearch<T>:IDisposable where T : IBaseLuceneEntity
     {
         #region Privates
         private FSDirectory directoryTemp=null;
@@ -54,6 +60,7 @@ namespace LuceneSearchEngine
         {
             get {return Path.Combine(LuceneSettings.IndexPath, indexname);}
         }
+
         /// <summary>
         /// Lucene Directory Object
         /// </summary>
@@ -61,24 +68,23 @@ namespace LuceneSearchEngine
         {
             get
             {
-                if (directoryTemp == null) directoryTemp = FSDirectory.Open(new DirectoryInfo(luceneDir));
-                if (IndexWriter.IsLocked(directoryTemp)) IndexWriter.Unlock(directoryTemp);
-                var lockFilePath = Path.Combine(luceneDir, string.Format( "{0}_write.lock", indexname));
-                if (File.Exists(lockFilePath)) File.Delete(lockFilePath);
+                //Create directory if it does not exists
+                if (directoryTemp == null)
+                    directoryTemp = FSDirectory.Open(new DirectoryInfo(luceneDir));
                 return directoryTemp;
             }
         }
         #endregion
 
         #region Spatial Data
-        public SpatialStrategy Strategy
+        internal SpatialStrategy Strategy
         {
             get
             {
                 return strategy;
             }
         }
-        public SpatialContext SpatialContext
+        internal SpatialContext SpatialContext
         {
             get
             {
@@ -102,7 +108,7 @@ namespace LuceneSearchEngine
         /// Sets Spatial Searching for Points
         /// </summary>
         /// <param name="locationField"></param>
-        public void SetPointVectorStrategy(string locationField)
+        internal void SetPointVectorStrategy(string locationField)
         {
             sptctx = SpatialContext.GEO;
             strategy = new PointVectorStrategy(sptctx, locationField);          
@@ -113,7 +119,7 @@ namespace LuceneSearchEngine
         /// <param name="doc">Document to add the location</param>
         /// <param name="x">Latitude</param>
         /// <param name="y">Longitude</param>
-        public void AddLocation(Document doc, double phi, double lamda)
+        internal void AddLocation(Document doc, double phi, double lamda)
         {
             Shape point = SpatialContext.MakePoint(phi, lamda);
             foreach (AbstractField field in strategy.CreateIndexableFields(point))
@@ -128,7 +134,7 @@ namespace LuceneSearchEngine
         /// <param name="doc">Document</param>
         /// <param name="args">SpatialArgs data</param>
         /// <returns></returns>
-        public double DocumentDistance(Document doc, SpatialArgs args)
+        internal double DocumentDistance(Document doc, SpatialArgs args)
         {
             var docPoint = (Point)ShapeReaderWriter.ReadShape(doc.Get(strategy.GetFieldName()));
             double docDistDEG = SpatialContext.GetDistCalc().Distance(args.Shape.GetCenter(), docPoint);
@@ -142,7 +148,7 @@ namespace LuceneSearchEngine
         /// Creates an indexwriter in order to use for batch insert
         /// </summary>
         /// <returns>The index writer</returns>
-        public IndexWriter InitBatchIndexing()
+        internal IndexWriter InitBatchIndexing()
         {
             ACIAnalyzer analyzer = new ACIAnalyzer(Version.LUCENE_30);//ASCIIFoldingFilterFactory
             IndexWriter writer = new IndexWriter(directory, analyzer, IndexWriter.MaxFieldLength.UNLIMITED);
@@ -153,7 +159,7 @@ namespace LuceneSearchEngine
         /// Clears Index Writer
         /// </summary>
         /// <param name="writer"></param>
-        public void CleanUpBatchIndexing(IndexWriter writer)
+        internal void CleanUpBatchIndexing(IndexWriter writer)
         {
             writer.Commit();
             writer.Optimize();
@@ -166,7 +172,7 @@ namespace LuceneSearchEngine
         /// </summary>
         /// <param name="doc">Document where we store data</param>
         /// <param name="lce">Entity which holds data</param>
-        public abstract void Indexing(Document doc ,T lce);
+        internal abstract void Indexing(Document doc ,T lce);
 
         /// <summary>
         /// Adds Single document to Index
@@ -176,12 +182,12 @@ namespace LuceneSearchEngine
         private void addToLuceneIndex(T entitydata, IndexWriter writer)
         {
             // remove older index entry
-            var searchQuery = new TermQuery(new Term("EntityId", entitydata.EntityId));
+            LuceneField attranalysis = MetaFinder.PropertyLuceneInfo<LuceneField>(typeof(IBaseLuceneEntity),nameof(IBaseLuceneEntity.EntityId));
+
+            var searchQuery = new TermQuery(new Term(attranalysis.Name, entitydata.EntityId));
             writer.DeleteDocuments(searchQuery);
             // add new index entry
             var doc = new Document();
-            doc.Add(new Field("EntityId", entitydata.EntityId, Field.Store.YES, Field.Index.NOT_ANALYZED));
-
             // add lucene fields
             Indexing(doc, entitydata);
             // add entry to index
@@ -209,7 +215,7 @@ namespace LuceneSearchEngine
         /// </summary>
         /// <param name="entitydata">Entity to store</param>
         /// <param name="writer">Index Writer</param>
-        public void AddUpdateLuceneIndex(T entitydata, IndexWriter writer)
+        internal void AddUpdateLuceneIndex(T entitydata, IndexWriter writer)
         {
             addToLuceneIndex(entitydata, writer);
         }
@@ -238,6 +244,8 @@ namespace LuceneSearchEngine
         /// <returns>True if operation was successful</returns>
         public bool ClearLuceneIndex()
         {
+            if (!IndexReader.IndexExists(directory))
+                throw new NoIndexException(IndexName, directory.Directory.FullName);
             try
             {
                 var analyzer = new ACIAnalyzer(Version.LUCENE_30);
@@ -270,6 +278,10 @@ namespace LuceneSearchEngine
                 writer.Dispose();
             }
         }
+        public bool IndexExists
+        {
+            get { return IndexReader.IndexExists(directory); }
+        }
         #endregion
 
         #region Query
@@ -277,16 +289,9 @@ namespace LuceneSearchEngine
         /// Base function Transforms Entity from a document
         /// </summary>
         /// <param name="doc">Document to transform</param>
-        /// <returns>Entity of document</returns>
-        public abstract T MapDocToData(Document doc);
-        /// <summary>
-        /// Base function Transforms Entity from a document
-        /// </summary>
-        /// <param name="doc">Document to transform</param>
         /// <param name="args">Search spatial arguments</param>
         /// <returns>Entity of document</returns>
-        public abstract T MapDocToData(Document doc, SpatialArgs args);
-        public abstract T MapDocToData(Document doc, SpatialArgs args,float score);
+        internal abstract T MapDocToData(Document doc, SpatialArgs args=null,float? score=null);
 
         private ACIAnalyzer Analyzer
         {
@@ -301,14 +306,13 @@ namespace LuceneSearchEngine
         /// <summary>
         /// Index Searcher Object
         /// </summary>
-        public IndexSearcher Searcher
+        internal IndexSearcher Searcher
         {
             get
             {
                 if (searcher == null)
                 {
-                    indexReader = IndexReader.Open(directory, true);
-                    searcher = new IndexSearcher(indexReader);
+                    SetSearcher();
                 }
                 return searcher;
             }
@@ -316,20 +320,27 @@ namespace LuceneSearchEngine
         /// <summary>
         /// Set ups a searching object to reuse for better performance
         /// </summary>
-        public void SetSearcher()
+        internal void SetSearcher()
         {
-            indexReader = IndexReader.Open(directory, true);
-            searcher = new IndexSearcher(indexReader);
+            if (IndexReader.IndexExists(directory))
+            {
+                indexReader = IndexReader.Open(directory, true);
+                searcher = new IndexSearcher(indexReader);
+            }
+            else
+                throw new NoIndexException(IndexName,directory.Directory.FullName);
         }
         /// <summary>
         /// Removes index searcher
         /// </summary>
-        public void CleanSearcher()
+        internal void CleanSearcher()
         {
             if (sanalyzer != null)
                 sanalyzer.Close();
-            indexReader.Dispose();
-            searcher.Dispose();
+            if(indexReader!=null)
+                indexReader.Dispose();
+            if(searcher!=null)
+                searcher.Dispose();
             searcher = null;
             indexReader = null;
         }
@@ -408,6 +419,8 @@ namespace LuceneSearchEngine
 
             foreach (SearchTerm entry in SearchTermFields)
             {
+                if (entry == null)
+                    continue;
                 if (entry.SearchingOption==SearchFieldOption.INTRANGE)
                 {
                     NumericRangeQuery<int> nq = NumericRangeQuery.NewIntRange(entry.Field, entry.iFrom, entry.iTo, true, true);
@@ -448,7 +461,7 @@ namespace LuceneSearchEngine
         /// <param name="ResultsPerPage">Results per page</param>
         /// <param name="limit">limit result default is 20</param>
         /// <returns>Query result</returns>
-        public LuceneResults<T> Search(List<SearchTerm> SearchTermFields, int page, int ResultsPerPage, int limit = 500, List<SortField> sorting = null)
+        internal LuceneResults<T> Search(List<SearchTerm> SearchTermFields, int page, int ResultsPerPage, int limit = 500, List<SortField> sorting = null)
         {
             // set up lucene searcher
             BooleanQuery query = SearchTermQuery(SearchTermFields);
@@ -475,7 +488,7 @@ namespace LuceneSearchEngine
         /// <param name="ResultsPerPage">Results per page</param>
         /// <param name="limit">limit result default is 20</param>
         /// <returns>Query result</returns>
-        public LuceneResults<T> Search(List<SearchTerm> SearchTermFields, 
+        internal LuceneResults<T> Search(List<SearchTerm> SearchTermFields, 
             double latitude, double longitude, double radius, 
             int page, int ResultsPerPage, int limit = 20,List<SortField> sorting=null)
         {
@@ -522,7 +535,7 @@ namespace LuceneSearchEngine
         /// <param name="ResultsPerPage">Results per page</param>
         /// <param name="limit">limit result default is 20</param>
         /// <returns>Query results</returns>
-        public LuceneResults<T> Search (string searchQuery, List<string> searchFields, int page, int ResultsPerPage, int limit=500, List<SortField> sorting = null)
+        internal LuceneResults<T> Search (string searchQuery, List<string> searchFields, int page, int ResultsPerPage, int limit=500, List<SortField> sorting = null)
         {
             if (string.IsNullOrEmpty(searchQuery))
             {
@@ -553,7 +566,7 @@ namespace LuceneSearchEngine
         /// Returns all documents
         /// </summary>
         /// <returns></returns>
-        public LuceneResults<T> GetAllIndexRecords()
+        internal LuceneResults<T> GetAllIndexRecords()
         {
             //validate search index
             if (!System.IO.Directory.EnumerateFiles(luceneDir).Any())
@@ -566,9 +579,59 @@ namespace LuceneSearchEngine
             var term = indexReader.TermDocs();
             while (term.Next()) docs.Add(Searcher.Doc(term.Doc));
             return new LuceneResults<T>
-            { Results = docs.Select(MapDocToData).ToList(), ResultsCount = docs.Count };
+            { Results = docs.Select(x => MapDocToData(x)).ToList(), ResultsCount = docs.Count };
 
         }
+        /// <summary>
+        /// Gets all document paged
+        /// </summary>
+        /// <param name="page">page number</param>
+        /// <param name="ResultsPerPage">Results Per Page</param>
+        /// <param name="sorting">Sorting</param>
+        internal LuceneResults<T> GetAllPaged(int page, int ResultsPerPage, List<SortField> sorting = null)
+        {
+            //validate search index
+            if (!System.IO.Directory.EnumerateFiles(luceneDir).Any())
+            {
+                return new LuceneResults<T>
+                { Results = new List<T>(), ResultsCount = 0 };
+            }
+            MatchAllDocsQuery aQuery = new MatchAllDocsQuery();
+            Sort sort = null;
+            ScoreDoc[] hits;
+            int limit = (page + 1) * ResultsPerPage;
+            if (sorting == null)
+            {
+                hits = Searcher.Search(aQuery, limit).ScoreDocs;
+            }
+            else
+            {
+                sort = new Sort(sorting.ToArray());
+                hits = Searcher.Search(aQuery, null, limit, sort).ScoreDocs;
+            }
+
+            LuceneResults<T> results = new LuceneResults<T>();
+            int cpage = page > 0 ? page - 1 : 1;
+            results.Results = hits.Select(hit => MapDocToData(Searcher.Doc(hit.Doc), null, hit.Score)).Skip(ResultsPerPage * (cpage)).Take(ResultsPerPage).ToList();
+            results.ResultsCount = Pages(ResultsPerPage);
+            return results;
+        }
+
+        internal int DocsCount()
+        {
+            return Searcher.reader_ForNUnit.NumDocs();
+        }
+
+        internal int Pages(int ResultsPerPage)
+        {
+            int count = Searcher.reader_ForNUnit.NumDocs();
+            return Utility.PagesCount(ResultsPerPage, count);
+        }
+
         #endregion
+        public void Dispose()
+        {
+            CleanSearcher();
+        }
     }
 }

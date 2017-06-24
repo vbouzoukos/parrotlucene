@@ -83,6 +83,10 @@
       <HintPath>..\packages\Lucene.Net.Contrib.3.0.3\lib\net40\Lucene.Net.Contrib.SpellChecker.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="Newtonsoft.Json, Version=10.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\packages\Newtonsoft.Json.10.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="Spatial4n.Core, Version=0.3.0.0, Culture=neutral, PublicKeyToken=9f9456e1ca16d45e, processorArchitecture=MSIL">
       <HintPath>..\packages\Spatial4n.Core.0.3\lib\net40\Spatial4n.Core.dll</HintPath>
       <Private>True</Private>
@@ -97,21 +101,33 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="AccentPhoneticTransform.cs" />
-    <Compile Include="ACIAnalyzer.cs" />
-    <Compile Include="GreekAccentFilter.cs" />
-    <Compile Include="GreekPhoneticFilter.cs" />
-    <Compile Include="IBaseLuceneEntity.cs" />
-    <Compile Include="LuceneResults.cs" />
-    <Compile Include="LuceneSearch.cs" />
+    <Compile Include="Analyzer\Filter\AccentPhoneticTransform.cs" />
+    <Compile Include="Analyzer\ACIAnalyzer.cs" />
+    <Compile Include="Analyzer\Filter\GreekAccentFilter.cs" />
+    <Compile Include="Analyzer\Filter\GreekPhoneticFilter.cs" />
+    <Compile Include="Error\NoIndexException.cs" />
+    <Compile Include="Indexing\Batch\BatchIndexing.cs" />
+    <Compile Include="Indexing\Entity\IBaseLuceneEntity.cs" />
+    <Compile Include="Indexing\Entity\ILuceneCustomMapper.cs" />
+    <Compile Include="Indexing\Entity\LuceneEntity.cs" />
+    <Compile Include="Indexing\Metadata\LuceneAnalysis.cs" />
+    <Compile Include="Indexing\Metadata\LuceneField.cs" />
+    <Compile Include="Indexing\Metadata\LuceneIndexedEntity.cs" />
+    <Compile Include="Indexing\Metadata\MetaFinder.cs" />
+    <Compile Include="Search\Enums.cs" />
+    <Compile Include="Search\SortOption.cs" />
+    <Compile Include="Search\LuceneSearch.cs" />
+    <Compile Include="Search\LuceneResults.cs" />
+    <Compile Include="Search\Core\CoreSearch.cs" />
     <Compile Include="LuceneSettings.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="SearchTerm.cs" />
+    <Compile Include="Search\SearchTerm.cs" />
     <Compile Include="Utility.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
