@@ -1,0 +1,9 @@
+D:\dev\gtihub\lucene\parrot.lucene\parrot.lucene\bin\Debug\netstandard2.0\ParrotLucene.deps.json
+D:\dev\gtihub\lucene\parrot.lucene\parrot.lucene\bin\Debug\netstandard2.0\ParrotLucene.dll
+D:\dev\gtihub\lucene\parrot.lucene\parrot.lucene\bin\Debug\netstandard2.0\ParrotLucene.pdb
+D:\dev\gtihub\lucene\parrot.lucene\parrot.lucene\obj\Debug\netstandard2.0\ParrotLucene.csprojAssemblyReference.cache
+D:\dev\gtihub\lucene\parrot.lucene\parrot.lucene\obj\Debug\netstandard2.0\ParrotLucene.AssemblyInfoInputs.cache
+D:\dev\gtihub\lucene\parrot.lucene\parrot.lucene\obj\Debug\netstandard2.0\ParrotLucene.AssemblyInfo.cs
+D:\dev\gtihub\lucene\parrot.lucene\parrot.lucene\obj\Debug\netstandard2.0\ParrotLucene.csproj.CoreCompileInputs.cache
+D:\dev\gtihub\lucene\parrot.lucene\parrot.lucene\obj\Debug\netstandard2.0\ParrotLucene.dll
+D:\dev\gtihub\lucene\parrot.lucene\parrot.lucene\obj\Debug\netstandard2.0\ParrotLucene.pdb

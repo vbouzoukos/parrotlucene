@@ -1,14 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Reflection;
 
-using LuceneSearchEngine.Search;
-using LuceneSearchEngine.Search.Core;
-
-namespace LuceneSearchEngine.Indexing.Metadata
+namespace ParrotLucene.Indexing.Metadata
 {
     /// <summary>
     /// Used to read annotations of entity to help with storing data

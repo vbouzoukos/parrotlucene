@@ -1,15 +1,20 @@
-﻿public enum SearchFieldOption
+﻿namespace ParrotLucene.Search
 {
-    TERM,
-    LIKE,
-    INTRANGE,
-    DOUBLERANGE,
-    FUZZY
-}
+    public enum SearchFieldOption
+    {
+        TERM,
+        LIKE,
+        INTRANGE,
+        DOUBLERANGE,
+        FUZZY,
+        EXACT,
+        DECIMALRANGE
+    }
 
-public enum Occurance
-{
-    MUST = 0,
-    SHOULD = 1,
-    NOT = 2
+    public enum Occurance
+    {
+        MUST = 0,
+        SHOULD = 1,
+        NOT = 2
+    }
 }

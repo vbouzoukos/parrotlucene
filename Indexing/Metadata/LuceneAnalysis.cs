@@ -1,11 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Runtime.CompilerServices;
 
-namespace LuceneSearchEngine.Indexing.Metadata
+namespace ParrotLucene.Indexing.Metadata
 {
     /// <summary>
     /// Lucene Analysed Field (we use this to set the field as analysed for searching)
